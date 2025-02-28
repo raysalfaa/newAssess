@@ -2,26 +2,22 @@ pipeline {
     agent any
 
     environment {
-        GIT_URL = 'https://github.com/raysalfaa/newAssess.git'
-        // BASE_BRANCH = ''
-        // SOURCE_BRANCH = ''
+        SONARQUBE_URL = 'http://your-sonarqube-server:9000'
+        SONARQUBE_TOKEN = credentials('sonarqube-token') // Store token in Jenkins Credentials
     }
 
     stages {
         stage('Clone Repository') {
             steps {
                 script {
-                    def json = readJSON(text: env.CHANGE_ID ? env.GIT_COMMIT_MESSAGE : '{}')
+                    def BASE_BRANCH = env.CHANGE_TARGET
+                    def SOURCE_BRANCH = env.CHANGE_BRANCH
+                    def GIT_URL = env.GIT_URL
                     
-                    BASE_BRANCH = env.CHANGE_TARGET // Target branch (e.g., dev, prod, staging)
-                    SOURCE_BRANCH = env.CHANGE_BRANCH // Source branch (PR source branch)
-                    GIT_URL = env.GIT_URL // Clone URL of repo
-
                     echo "Base Branch (Target): ${BASE_BRANCH}"
                     echo "Source Branch: ${SOURCE_BRANCH}"
                     echo "Clone URL: ${GIT_URL}"
-                    
-                    // Skip build if the target branch is prod or staging
+
                     if (BASE_BRANCH == 'prod' || BASE_BRANCH == 'staging') {
                         echo "Skipping build for target branch: ${BASE_BRANCH}"
                         currentBuild.result = 'ABORTED'
@@ -36,14 +32,32 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building the application..."
-                // Add your build commands here
+                sh './gradlew build'  // Change this based on your build tool (Maven, Gradle, etc.)
             }
         }
 
-        stage('Test') {
+        stage('SonarQube Analysis') {
             steps {
-                echo "Running tests..."
-                // Add test commands here
+                withSonarQubeEnv('SonarQube') {  // Use configured SonarQube server name
+                    sh '''
+                    ./gradlew sonar -Dsonar.projectKey=your_project_key \
+                                   -Dsonar.host.url=$SONARQUBE_URL \
+                                   -Dsonar.login=$SONARQUBE_TOKEN
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                script {
+                    timeout(time: 2, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline failed due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
             }
         }
     }
