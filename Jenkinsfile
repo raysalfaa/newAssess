@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        GIT_URL = ''
-        BASE_BRANCH = ''
-        SOURCE_BRANCH = ''
+        GIT_URL = 'https://github.com/raysalfaa/newAssess.git'
+        // BASE_BRANCH = ''
+        // SOURCE_BRANCH = ''
     }
 
     stages {
